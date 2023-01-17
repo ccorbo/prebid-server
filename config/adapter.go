@@ -10,4 +10,9 @@ type Adapter struct {
 	// needed for Facebook
 	PlatformID string
 	AppSecret  string
+
+	// IX
+	SamplingEnabled    bool `mapstructure:"sampling_enabled"`
+	SamplingInitial    int  `mapstructure:"sampling_initial"`
+	SamplingThereafter int  `mapstructure:"sampling_thereafter"`
 }

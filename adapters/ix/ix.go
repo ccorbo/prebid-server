@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/golang/glog"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/config"
@@ -17,11 +17,14 @@ import (
 	"github.com/prebid/openrtb/v17/native1"
 	native1response "github.com/prebid/openrtb/v17/native1/response"
 	"github.com/prebid/openrtb/v17/openrtb2"
+	log "go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type IxAdapter struct {
 	URI         string
 	maxRequests int
+	logger      log.Logger
 }
 
 func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
@@ -82,7 +85,7 @@ func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters
 			siteIdStringBuffer.WriteString(siteId)
 			siteIdStringBuffer.WriteString(", ")
 		}
-		glog.Warningf("Multiple SiteIDs found. %s", siteIdStringBuffer.String())
+		a.logger.Warn(fmt.Sprintf("Multiple SiteIDs found. %s", siteIdStringBuffer.String()))
 	}
 
 	request.Imp = sanitizedImps
@@ -218,7 +221,7 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 		}
 	}
 
-	glog.Infof("Returning Bid Response: RequestID=%s, NumberOfImp=%d, NumberOfBids=%d", internalRequest.ID, len(internalRequest.Imp), len(bidderResponse.Bids))
+	a.logger.Info(fmt.Sprintf("Returning Bid Response: RequestID=%s, NumberOfImp=%d, NumberOfBids=%d", internalRequest.ID, len(internalRequest.Imp), len(bidderResponse.Bids)))
 	return bidderResponse, errs
 }
 
@@ -254,9 +257,22 @@ func getMediaTypeForBid(bid openrtb2.Bid, impMediaTypeReq map[string]openrtb_ext
 
 // Builder builds a new instance of the Ix adapter for the given bidder with the given config.
 func Builder(bidderName openrtb_ext.BidderName, config config.Adapter, server config.Server) (adapters.Bidder, error) {
+	loggerConfig := log.NewProductionConfig()
+	loggerConfig.EncoderConfig.TimeKey = "time"
+	loggerConfig.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+
+	if config.SamplingEnabled {
+		loggerConfig = getLoggerSamplingConfig(loggerConfig, config)
+	}
+
+	logger, _ := loggerConfig.Build()
+
+	defer logger.Sync()
+
 	bidder := &IxAdapter{
 		URI:         config.Endpoint,
 		maxRequests: 20,
+		logger:      *logger,
 	}
 	return bidder, nil
 }
@@ -306,4 +322,14 @@ func marshalJsonWithoutUnicode(v interface{}) (string, error) {
 	// json.Encode also writes a newline, need to remove
 	// https://pkg.go.dev/encoding/json#Encoder.Encode
 	return strings.TrimSuffix(sb.String(), "\n"), nil
+}
+
+// getLoggerSamplingConfig applies sampling configs to logger config and returns the updated config.
+func getLoggerSamplingConfig(loggerConfig log.Config, config config.Adapter) log.Config {
+	samplingConfig := &log.SamplingConfig{
+		Initial:    config.SamplingInitial,
+		Thereafter: config.SamplingThereafter,
+	}
+	loggerConfig.Sampling = samplingConfig
+	return loggerConfig
 }

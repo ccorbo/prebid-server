@@ -2,8 +2,9 @@ package ix
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/adapters/adapterstest"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/prebid/openrtb/v17/adcom1"
 	"github.com/prebid/openrtb/v17/openrtb2"
+
+	log "go.uber.org/zap"
 )
 
 const endpoint string = "http://host/endpoint"
@@ -27,7 +30,10 @@ func TestJsonSamples(t *testing.T) {
 }
 
 func TestIxMakeBidsWithCategoryDuration(t *testing.T) {
-	bidder := &IxAdapter{}
+	loggerConfig := log.NewDevelopmentConfig()
+	logger, _ := loggerConfig.Build()
+
+	bidder := &IxAdapter{logger: *logger}
 
 	mockedReq := &openrtb2.BidRequest{
 		Imp: []openrtb2.Imp{{
@@ -129,4 +135,29 @@ func TestIxMakeBidsWithInvalidJson(t *testing.T) {
 	assert.Len(t, errs, 1)
 	assert.EqualError(t, errs[0], "json: error calling MarshalJSON for type json.RawMessage: invalid character 'X' looking for beginning of value")
 	assert.Len(t, actualAdapterRequests, 0)
+}
+
+func TestIxBuilderWithLoggerSamplingOff(t *testing.T) {
+	if bidder, err := Builder(openrtb_ext.BidderIx, config.Adapter{Endpoint: endpoint, SamplingEnabled: false}, config.Server{ExternalUrl: "http://hosturl.com", GvlID: 1, DataCenter: "2"}); err == nil {
+		ixBidder := bidder.(*IxAdapter)
+		assert.NotNil(t, ixBidder.logger)
+	} else {
+		t.Fatalf("Builder returned unexpected error %v", err)
+	}
+}
+
+func TestIxBuilderWithLoggerSamplingOn(t *testing.T) {
+	if bidder, err := Builder(openrtb_ext.BidderIx, config.Adapter{Endpoint: endpoint, SamplingEnabled: true}, config.Server{ExternalUrl: "http://hosturl.com", GvlID: 1, DataCenter: "2"}); err == nil {
+		ixBidder := bidder.(*IxAdapter)
+		assert.NotNil(t, ixBidder.logger)
+	} else {
+		t.Fatalf("Builder returned unexpected error %v", err)
+	}
+}
+
+func TestGetLoggerSamplingConfig(t *testing.T) {
+	loggerConfig := log.NewDevelopmentConfig()
+	updatedLoggerConfig := getLoggerSamplingConfig(loggerConfig, config.Adapter{SamplingInitial: 1, SamplingThereafter: 0})
+	assert.Equal(t, 1, updatedLoggerConfig.Sampling.Initial)
+	assert.Equal(t, 0, updatedLoggerConfig.Sampling.Thereafter)
 }
