@@ -22,14 +22,14 @@ func TestConvertDownTo25(t *testing.T) {
 				ID:     "anyID",
 				Imp:    []openrtb2.Imp{{Rwdd: 1}},
 				Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
-				Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3"},
+				Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "gpp", GPPSID: []int8{1, 2}},
 				User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
 			},
 			expectedRequest: openrtb2.BidRequest{
 				ID:     "anyID",
 				Imp:    []openrtb2.Imp{{Ext: json.RawMessage(`{"prebid":{"is_rewarded_inventory":1}}`)}},
 				Source: &openrtb2.Source{Ext: json.RawMessage(`{"schain":{"complete":1,"nodes":[],"ver":"2"}}`)},
-				Regs:   &openrtb2.Regs{Ext: json.RawMessage(`{"gdpr":1,"us_privacy":"3"}`)},
+				Regs:   &openrtb2.Regs{Ext: json.RawMessage(`{"gdpr":1,"gpp":"gpp","gpp_sid":[1,2],"us_privacy":"3"}`)},
 				User:   &openrtb2.User{Ext: json.RawMessage(`{"consent":"1","eids":[{"source":"42"}]}`)},
 			},
 		},
@@ -76,7 +76,7 @@ func TestConvertDownTo25(t *testing.T) {
 			},
 		},
 		{
-			name: "malformed-shhain",
+			name: "malformed-schain",
 			givenRequest: openrtb2.BidRequest{
 				ID:     "anyID",
 				Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}, Ext: json.RawMessage(`malformed`)},
@@ -120,6 +120,22 @@ func TestConvertDownTo25(t *testing.T) {
 			givenRequest: openrtb2.BidRequest{
 				ID:  "anyID",
 				Imp: []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`malformed`)}},
+			},
+			expectedErr: "invalid character 'm' looking for beginning of value",
+		},
+		{
+			name: "malformed-gpp",
+			givenRequest: openrtb2.BidRequest{
+				ID:   "anyID",
+				Regs: &openrtb2.Regs{GPP: "gpp", Ext: json.RawMessage(`malformed`)},
+			},
+			expectedErr: "invalid character 'm' looking for beginning of value",
+		},
+		{
+			name: "malformed-gppsid",
+			givenRequest: openrtb2.BidRequest{
+				ID:   "anyID",
+				Regs: &openrtb2.Regs{GPPSID: []int8{1, 2}, Ext: json.RawMessage(`malformed`)},
 			},
 			expectedErr: "invalid character 'm' looking for beginning of value",
 		},
