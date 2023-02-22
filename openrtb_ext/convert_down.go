@@ -19,6 +19,16 @@ func ConvertDownTo25(r *RequestWrapper) error {
 		return err
 	}
 
+	//gpp
+	if err := moveGPPFrom26To25(r); err != nil {
+		return err
+	}
+
+	//gpp_sid
+	if err := moveGPPSidFrom26To25(r); err != nil {
+		return err
+	}
+
 	// eid
 	if err := moveEIDFrom26To25(r); err != nil {
 		return err
@@ -81,6 +91,52 @@ func moveGDPRFrom26To25(r *RequestWrapper) error {
 		return err
 	}
 	regExt.SetGDPR(gdpr26)
+
+	return nil
+}
+
+// moveGPPFrom26To25 modifies the request to move the OpenRTB 2.6 GPP signal
+// field (req.regs.gpp) to the OpenRTB 2.5 location (req.regs.ext.gpp). If the
+// OpenRTB 2.5 location is already present it may be overwritten. The OpenRTB 2.5
+// location is expected to be empty.
+func moveGPPFrom26To25(r *RequestWrapper) error {
+	if r.Regs == nil || r.Regs.GPP == "" {
+		return nil
+	}
+
+	// read and clear 2.6 location
+	gpp26 := r.Regs.GPP
+	r.Regs.GPP = ""
+
+	// move to 2.5 location
+	regExt, err := r.GetRegExt()
+	if err != nil {
+		return err
+	}
+	regExt.SetGpp(gpp26)
+
+	return nil
+}
+
+// moveGPPSidFrom26To25 modifies the request to move the OpenRTB 2.6 GPP signal
+// field (req.regs.gpp_sid) to the OpenRTB 2.5 location (req.regs.ext.gpp_sid). If the
+// OpenRTB 2.5 location is already present it may be overwritten. The OpenRTB 2.5
+// location is expected to be empty.
+func moveGPPSidFrom26To25(r *RequestWrapper) error {
+	if r.Regs == nil || r.Regs.GPPSID == nil {
+		return nil
+	}
+
+	// read and clear 2.6 location
+	gppsid26 := r.Regs.GPPSID
+	r.Regs.GPPSID = nil
+
+	// move to 2.5 location
+	regExt, err := r.GetRegExt()
+	if err != nil {
+		return err
+	}
+	regExt.SetGppSid(gppsid26)
 
 	return nil
 }

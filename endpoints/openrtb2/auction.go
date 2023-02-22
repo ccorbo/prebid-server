@@ -453,6 +453,7 @@ func (deps *endpointDeps) parseRequest(httpRequest *http.Request, labels *metric
 	lmt.ModifyForIOS(req.BidRequest)
 
 	hasStoredResponses := len(storedAuctionResponses) > 0
+
 	errL := deps.validateRequest(req, false, hasStoredResponses, storedBidResponses, hasStoredBidRequest)
 	if len(errL) > 0 {
 		errs = append(errs, errL...)

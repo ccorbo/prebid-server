@@ -148,6 +148,26 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 
 	// bidder level privacy policies
 	for _, bidderRequest := range allBidderRequests {
+		bidInfo, ok := rs.bidderInfo[bidderRequest.BidderName.String()]
+
+		if !ok {
+			continue
+		}
+
+		if !bidInfo.SupportOpenRTBTwoSix {
+			req = &openrtb_ext.RequestWrapper{BidRequest: bidderRequest.BidRequest}
+			err = openrtb_ext.ConvertDownTo25(req)
+			if err != nil {
+				bidderRequest.BidRequest = req.BidRequest
+			}
+		}
+
+		/*
+			if !bidInfo.SupportDynamicAdPodding {
+				// downversion ad podding function
+			}
+		*/
+
 		bidRequestAllowed := true
 
 		// CCPA

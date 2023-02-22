@@ -47,8 +47,10 @@ type BidderInfo struct {
 	PlatformID string `yaml:"platform_id" mapstructure:"platform_id"`
 	AppSecret  string `yaml:"app_secret" mapstructure:"app_secret"`
 	// EndpointCompression determines, if set, the type of compression the bid request will undergo before being sent to the corresponding bid server
-	EndpointCompression string       `yaml:"endpointCompression" mapstructure:"endpointCompression"`
-	OpenRTB             *OpenRTBInfo `yaml:"openrtb" mapstructure:"openrtb"`
+	EndpointCompression     string       `yaml:"endpointCompression" mapstructure:"endpointCompression"`
+	OpenRTB                 *OpenRTBInfo `yaml:"openrtb" mapstructure:"openrtb"`
+	SupportDynamicAdPodding bool         `yaml:"supportDynamicAdPodding" mapstructure:"supportDynamicAdPodding"`
+	SupportOpenRTBTwoSix    bool         `yaml:"supportOpenRTBTwoSix" mapstructure:"supportOpenRTBTwoSix"`
 }
 
 // BidderInfoExperiment specifies non-production ready feature config for a bidder

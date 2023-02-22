@@ -939,6 +939,10 @@ type RegExt struct {
 	gdprDirty      bool
 	usPrivacy      string
 	usPrivacyDirty bool
+	gpp            string
+	gppDirty       bool
+	gppSid         []int8
+	gppSidDirty    bool
 }
 
 func (re *RegExt) unmarshal(extJson json.RawMessage) error {
@@ -966,6 +970,20 @@ func (re *RegExt) unmarshal(extJson json.RawMessage) error {
 	uspJson, hasUsp := re.ext[us_privacyKey]
 	if hasUsp {
 		if err := json.Unmarshal(uspJson, &re.usPrivacy); err != nil {
+			return err
+		}
+	}
+
+	gppJson, hasGpp := re.ext["gpp"]
+	if hasGpp {
+		if err := json.Unmarshal(gppJson, &re.gpp); err != nil {
+			return err
+		}
+	}
+
+	gppSidJson, hasGppSid := re.ext["gpp_sid"]
+	if hasGppSid {
+		if err := json.Unmarshal(gppSidJson, &re.gppSid); err != nil {
 			return err
 		}
 	}
@@ -998,6 +1016,26 @@ func (re *RegExt) marshal() (json.RawMessage, error) {
 			delete(re.ext, us_privacyKey)
 		}
 		re.usPrivacyDirty = false
+	}
+
+	if re.gppDirty {
+		if len(re.gpp) > 0 {
+			rawjson, err := json.Marshal(re.gpp)
+			if err != nil {
+				return nil, err
+			}
+			re.ext["gpp"] = rawjson
+		}
+	}
+
+	if re.gppSidDirty {
+		if len(re.gppSid) > 0 {
+			rawjson, err := json.Marshal(re.gppSid)
+			if err != nil {
+				return nil, err
+			}
+			re.ext["gpp_sid"] = rawjson
+		}
 	}
 
 	re.extDirty = false
@@ -1042,6 +1080,26 @@ func (re *RegExt) GetUSPrivacy() string {
 func (re *RegExt) SetUSPrivacy(usPrivacy string) {
 	re.usPrivacy = usPrivacy
 	re.usPrivacyDirty = true
+}
+
+func (re *RegExt) GetGpp() string {
+	gpp := re.gpp
+	return gpp
+}
+
+func (re *RegExt) SetGpp(gpp string) {
+	re.gpp = gpp
+	re.gppDirty = true
+}
+
+func (re *RegExt) GetGppSid() []int8 {
+	gppSid := re.gppSid
+	return gppSid
+}
+
+func (re *RegExt) SetGppSid(gpp_sid []int8) {
+	re.gppSid = gpp_sid
+	re.gppSidDirty = true
 }
 
 // ---------------------------------------------------------------
