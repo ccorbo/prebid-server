@@ -680,3 +680,74 @@ func TestClear202211Fields(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateImpressions(t *testing.T) {
+	testCases := []struct {
+		name     string
+		given    *openrtb2.BidRequest
+		expected *openrtb2.BidRequest
+	}{
+		{
+			name: "base test",
+			given: &openrtb2.BidRequest{
+				ID: "1",
+				Imp: []openrtb2.Imp{
+					{
+						ID: "1",
+						Video: &openrtb2.Video{
+							PodDur: int64(60),
+							MaxSeq: int64(4),
+							W:      600,
+							H:      500,
+						},
+					},
+				},
+			},
+			expected: &openrtb2.BidRequest{
+				ID: "1",
+				Imp: []openrtb2.Imp{
+					{
+						ID: "0_0",
+						Video: &openrtb2.Video{
+							MaxDuration: 15,
+							W:           600,
+							H:           500,
+						},
+					},
+					{
+						ID: "0_1",
+						Video: &openrtb2.Video{
+							MaxDuration: 15,
+							W:           600,
+							H:           500,
+						},
+					},
+					{
+						ID: "0_2",
+						Video: &openrtb2.Video{
+							MaxDuration: 15,
+							W:           600,
+							H:           500,
+						},
+					},
+					{
+						ID: "0_3",
+						Video: &openrtb2.Video{
+							MaxDuration: 15,
+							W:           600,
+							H:           500,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := tc.given
+			CreateImpressions(r)
+			assert.Equal(t, &tc.expected, r)
+		})
+	}
+}
