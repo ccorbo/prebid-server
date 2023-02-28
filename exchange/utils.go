@@ -157,16 +157,13 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 		if !bidInfo.SupportOpenRTBTwoSix {
 			req = &openrtb_ext.RequestWrapper{BidRequest: bidderRequest.BidRequest}
 			err = openrtb_ext.ConvertDownTo25(req)
-			if err != nil {
-				bidderRequest.BidRequest = req.BidRequest
-			}
+			err = req.RebuildRequest()
+			bidderRequest.BidRequest = req.BidRequest
 		}
 
-		/*
-			if !bidInfo.SupportDynamicAdPodding {
-				// downversion ad podding function
-			}
-		*/
+		if !bidInfo.SupportDynamicAdPodding {
+			openrtb_ext.CreateImpressions(bidderRequest.BidRequest)
+		}
 
 		bidRequestAllowed := true
 
@@ -190,7 +187,7 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 				rs.me.RecordAdapterGDPRRequestBlocked(bidderRequest.BidderCoreName)
 			}
 		}
-
+		bidRequestAllowed = true
 		if auctionReq.FirstPartyData != nil && auctionReq.FirstPartyData[bidderRequest.BidderName] != nil {
 			applyFPD(auctionReq.FirstPartyData[bidderRequest.BidderName], bidderRequest.BidRequest)
 		}

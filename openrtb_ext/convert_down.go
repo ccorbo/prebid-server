@@ -1,5 +1,11 @@
 package openrtb_ext
 
+import (
+	"fmt"
+
+	"github.com/prebid/openrtb/v17/openrtb2"
+)
+
 func ConvertDownTo25(r *RequestWrapper) error {
 	// schain
 	if err := moveSupplyChainFrom26To25(r); err != nil {
@@ -350,4 +356,50 @@ func clear202211Fields(r *RequestWrapper) {
 		imp.Qty = nil
 		imp.DT = 0
 	}
+}
+
+func clearVideo26Fields(r *openrtb2.BidRequest) {
+	for _, imp := range r.Imp {
+		if video := imp.Video; video != nil {
+			video.MaxSeq = 0
+			video.PodDur = 0
+			video.PodID = 0
+			video.PodSeq = 0
+			video.RqdDurs = nil
+			video.SlotInPod = 0
+			video.MinCPMPerSec = 0
+		}
+	}
+}
+
+// Used to down convert dynamic ad pod requests to multi imp requests.
+func CreateImpressions(r *openrtb2.BidRequest) {
+	finalImpsArray := make([]openrtb2.Imp, 0)
+	for ind, imp := range r.Imp {
+		video := imp.Video
+		if video == nil {
+			continue
+		}
+		podDur := video.PodDur
+		if podDur == 0 {
+			continue
+		}
+		var numImps int
+		if video.MaxSeq == 0 {
+			continue
+		}
+		numImps = int(video.MaxSeq)
+		maxDuration := int(podDur) / numImps
+		impsArray := make([]openrtb2.Imp, numImps)
+		for impInd := range impsArray {
+			newImp := openrtb2.Imp{}
+			newImp.Video = video
+			newImp.ID = fmt.Sprintf("%d_%d", ind, impInd)
+			newImp.Video.MaxDuration = int64(maxDuration)
+			impsArray[impInd] = newImp
+		}
+		finalImpsArray = append(finalImpsArray, impsArray...)
+	}
+	r.Imp = finalImpsArray
+	clearVideo26Fields(r)
 }
