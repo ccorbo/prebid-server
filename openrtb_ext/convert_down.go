@@ -358,48 +358,46 @@ func clear202211Fields(r *RequestWrapper) {
 	}
 }
 
-func clearVideo26Fields(r *openrtb2.BidRequest) {
-	for _, imp := range r.Imp {
-		if video := imp.Video; video != nil {
-			video.MaxSeq = 0
-			video.PodDur = 0
-			video.PodID = 0
-			video.PodSeq = 0
-			video.RqdDurs = nil
-			video.SlotInPod = 0
-			video.MinCPMPerSec = 0
-		}
+func clearVideo26Fields(imp *openrtb2.Imp) {
+	if video := imp.Video; video != nil {
+		video.MaxSeq = 0
+		video.PodDur = 0
+		video.PodID = 0
+		video.PodSeq = 0
+		video.RqdDurs = nil
+		video.SlotInPod = 0
+		video.MinCPMPerSec = 0
 	}
+
 }
 
 // Used to down convert dynamic ad pod requests to multi imp requests.
 func CreateImpressions(r *openrtb2.BidRequest) {
 	finalImpsArray := make([]openrtb2.Imp, 0)
-	for ind, imp := range r.Imp {
-		video := imp.Video
-		if video == nil {
-			continue
+	for _, imp := range r.Imp {
+		if video := imp.Video; video != nil {
+			podDur := video.PodDur
+			if podDur == 0 {
+				continue
+			}
+			var numImps int
+			if video.MaxSeq == 0 {
+				continue
+			}
+			numImps = int(video.MaxSeq)
+			maxDuration := int(podDur) / numImps
+			impsArray := make([]openrtb2.Imp, numImps)
+			for impInd := range impsArray {
+				newImp := imp
+				newImp.Video = video
+				newImp.ID = fmt.Sprintf("%s_%d", imp.ID, impInd)
+				newImp.Video.MaxDuration = int64(maxDuration)
+				clearVideo26Fields(&newImp)
+				impsArray[impInd] = newImp
+			}
+			finalImpsArray = append(finalImpsArray, impsArray...)
 		}
-		podDur := video.PodDur
-		if podDur == 0 {
-			continue
-		}
-		var numImps int
-		if video.MaxSeq == 0 {
-			continue
-		}
-		numImps = int(video.MaxSeq)
-		maxDuration := int(podDur) / numImps
-		impsArray := make([]openrtb2.Imp, numImps)
-		for impInd := range impsArray {
-			newImp := openrtb2.Imp{}
-			newImp.Video = video
-			newImp.ID = fmt.Sprintf("%d_%d", ind, impInd)
-			newImp.Video.MaxDuration = int64(maxDuration)
-			impsArray[impInd] = newImp
-		}
-		finalImpsArray = append(finalImpsArray, impsArray...)
+
 	}
 	r.Imp = finalImpsArray
-	clearVideo26Fields(r)
 }

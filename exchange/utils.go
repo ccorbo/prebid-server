@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strconv"
 
 	"github.com/buger/jsonparser"
 	"github.com/prebid/go-gdpr/vendorconsent"
@@ -146,26 +147,40 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 		gdprPerms = rs.gdprPermsBuilder(tcf2Cfg, gdprRequestInfo)
 	}
 
-	// bidder level privacy policies
+	// bidder level conversions and privacy policies
 	for _, bidderRequest := range allBidderRequests {
-		bidInfo, ok := rs.bidderInfo[bidderRequest.BidderName.String()]
-
-		if !ok {
-			continue
-		}
-
-		if !bidInfo.SupportOpenRTBTwoSix {
-			req = &openrtb_ext.RequestWrapper{BidRequest: bidderRequest.BidRequest}
-			err = openrtb_ext.ConvertDownTo25(req)
-			err = req.RebuildRequest()
-			bidderRequest.BidRequest = req.BidRequest
-		}
-
-		if !bidInfo.SupportDynamicAdPodding {
-			openrtb_ext.CreateImpressions(bidderRequest.BidRequest)
-		}
-
 		bidRequestAllowed := true
+
+		if bidInfo, ok := rs.bidderInfo[bidderRequest.BidderName.String()]; ok {
+			var openrtbVersion float64
+			//var err error
+			if bidInfo.OpenRTB != nil {
+				if bidInfo.OpenRTB.Version != "" {
+					openrtbVersion, err = strconv.ParseFloat(bidInfo.OpenRTB.Version, 64)
+					if err != nil {
+						// if cant parse float just set to lower version to downgrade
+						openrtbVersion = 2.5
+					}
+				}
+
+				if bidInfo.OpenRTB.DynamicAdPoddingSupported != nil && *bidInfo.OpenRTB.DynamicAdPoddingSupported == false {
+					openrtb_ext.CreateImpressions(bidderRequest.BidRequest)
+				}
+
+				if openrtbVersion < 2.6 || int(openrtbVersion) == 0 {
+					req = &openrtb_ext.RequestWrapper{BidRequest: bidderRequest.BidRequest}
+					err = openrtb_ext.ConvertDownTo25(req)
+					if err != nil {
+						continue
+					}
+					err = req.RebuildRequest()
+					if err != nil {
+						continue
+					}
+					bidderRequest.BidRequest = req.BidRequest
+				}
+			}
+		}
 
 		// CCPA
 		privacyEnforcement.CCPA = ccpaEnforcer.ShouldEnforce(bidderRequest.BidderName.String())
@@ -187,7 +202,7 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 				rs.me.RecordAdapterGDPRRequestBlocked(bidderRequest.BidderCoreName)
 			}
 		}
-		bidRequestAllowed = true
+
 		if auctionReq.FirstPartyData != nil && auctionReq.FirstPartyData[bidderRequest.BidderName] != nil {
 			applyFPD(auctionReq.FirstPartyData[bidderRequest.BidderName], bidderRequest.BidRequest)
 		}

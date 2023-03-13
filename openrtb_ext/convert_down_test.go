@@ -707,7 +707,7 @@ func TestCreateImpressions(t *testing.T) {
 				ID: "1",
 				Imp: []openrtb2.Imp{
 					{
-						ID: "0_0",
+						ID: "1_0",
 						Video: &openrtb2.Video{
 							MaxDuration: 15,
 							W:           600,
@@ -715,7 +715,7 @@ func TestCreateImpressions(t *testing.T) {
 						},
 					},
 					{
-						ID: "0_1",
+						ID: "1_1",
 						Video: &openrtb2.Video{
 							MaxDuration: 15,
 							W:           600,
@@ -723,7 +723,7 @@ func TestCreateImpressions(t *testing.T) {
 						},
 					},
 					{
-						ID: "0_2",
+						ID: "1_2",
 						Video: &openrtb2.Video{
 							MaxDuration: 15,
 							W:           600,
@@ -731,7 +731,7 @@ func TestCreateImpressions(t *testing.T) {
 						},
 					},
 					{
-						ID: "0_3",
+						ID: "1_3",
 						Video: &openrtb2.Video{
 							MaxDuration: 15,
 							W:           600,
@@ -747,7 +747,7 @@ func TestCreateImpressions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			r := tc.given
 			CreateImpressions(r)
-			assert.Equal(t, &tc.expected, r)
+			assert.Equal(t, tc.expected, r)
 		})
 	}
 }

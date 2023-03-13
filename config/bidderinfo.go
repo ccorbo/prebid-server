@@ -47,10 +47,8 @@ type BidderInfo struct {
 	PlatformID string `yaml:"platform_id" mapstructure:"platform_id"`
 	AppSecret  string `yaml:"app_secret" mapstructure:"app_secret"`
 	// EndpointCompression determines, if set, the type of compression the bid request will undergo before being sent to the corresponding bid server
-	EndpointCompression     string       `yaml:"endpointCompression" mapstructure:"endpointCompression"`
-	OpenRTB                 *OpenRTBInfo `yaml:"openrtb" mapstructure:"openrtb"`
-	SupportDynamicAdPodding bool         `yaml:"supportDynamicAdPodding" mapstructure:"supportDynamicAdPodding"`
-	SupportOpenRTBTwoSix    bool         `yaml:"supportOpenRTBTwoSix" mapstructure:"supportOpenRTBTwoSix"`
+	EndpointCompression string       `yaml:"endpointCompression" mapstructure:"endpointCompression"`
+	OpenRTB             *OpenRTBInfo `yaml:"openrtb" mapstructure:"openrtb"`
 }
 
 // BidderInfoExperiment specifies non-production ready feature config for a bidder
@@ -94,8 +92,9 @@ type AdapterXAPI struct {
 // Version is not yet actively supported
 // GPPSupported is not yet actively supported
 type OpenRTBInfo struct {
-	Version      string `yaml:"version" mapstructure:"version"`
-	GPPSupported bool   `yaml:"gpp-supported" mapstructure:"gpp-supported"`
+	Version                   string `yaml:"version" mapstructure:"version"`
+	GPPSupported              bool   `yaml:"gpp-supported" mapstructure:"gpp-supported"`
+	DynamicAdPoddingSupported *bool  `yaml:"dynamic-ad-podding-supported" mapstructure:"dynamic-ad-podding-supported"`
 }
 
 // Syncer specifies the user sync settings for a bidder. This struct is shared by the account config,

@@ -18,6 +18,7 @@ import (
 	"github.com/prebid/prebid-server/util/ptrutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/proto"
 )
 
 // permissionsMock mocks the Permissions interface for tests
@@ -516,7 +517,6 @@ func TestCleanOpenRTBRequestsWithFPD(t *testing.T) {
 	fpd[openrtb_ext.BidderName("appnexus")] = &apnFpd
 
 	brightrollFpd := firstpartydata.ResolvedFirstPartyData{
-		Site: &openrtb2.Site{Name: "fpdBrightrollSite"},
 		App:  &openrtb2.App{Name: "fpdBrightrollApp"},
 		User: &openrtb2.User{Keywords: "fpdBrightrollUser"},
 	}
@@ -3860,5 +3860,291 @@ func Test_buildRequestExtMultiBid(t *testing.T) {
 			got := buildRequestExtMultiBid(tt.args.adapter, tt.args.reqMultiBid, tt.args.adapterABC)
 			assert.Equal(t, tt.want, got)
 		})
+	}
+}
+
+func TestCleanOpenRTBRequestsDowngrading(t *testing.T) {
+	testCases := []struct {
+		description            string
+		req                    AuctionRequest
+		expectedBidderRequests map[string]BidderRequest
+		bidderInfos            map[string]config.BidderInfo
+	}{
+		{
+			description: "2.6 version request, expect no downgrading to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`)}},
+						Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
+						Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN", GPPSID: []int8{7}},
+						User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version: "2.6",
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`)}},
+						Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
+						Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN", GPPSID: []int8{7}},
+						User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
+					},
+				},
+			},
+		},
+		{
+			description: "2.5 version request, expect downgrading to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`)}},
+						Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
+						Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN", GPPSID: []int8{7}},
+						User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version: "2.5",
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Ext: json.RawMessage(`{"bidder":{"placementId":"123"},"prebid":{"is_rewarded_inventory":1}}`)}},
+						Source: &openrtb2.Source{Ext: json.RawMessage(`{"schain":{"complete":1,"nodes":[],"ver":"2"}}`)},
+						Regs:   &openrtb2.Regs{Ext: json.RawMessage(`{"gdpr":1,"gpp":"DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN","gpp_sid":[7],"us_privacy":"3"}`)},
+						User:   &openrtb2.User{Ext: json.RawMessage(`{"consent":"1","eids":[{"source":"42"}]}`)},
+					},
+				},
+			},
+		},
+		{
+			description: "openrtb version not provided, expect downgrading to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`)}},
+						Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
+						Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN", GPPSID: []int8{7}},
+						User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Ext: json.RawMessage(`{"bidder":{"placementId":"123"},"prebid":{"is_rewarded_inventory":1}}`)}},
+						Source: &openrtb2.Source{Ext: json.RawMessage(`{"schain":{"complete":1,"nodes":[],"ver":"2"}}`)},
+						Regs:   &openrtb2.Regs{Ext: json.RawMessage(`{"gdpr":1,"gpp":"DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN","gpp_sid":[7],"us_privacy":"3"}`)},
+						User:   &openrtb2.User{Ext: json.RawMessage(`{"consent":"1","eids":[{"source":"42"}]}`)},
+					},
+				},
+			},
+		},
+		{
+			description: "bad openrtb version provided, expect downgrading to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Rwdd: 1, Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`)}},
+						Source: &openrtb2.Source{SChain: &openrtb2.SupplyChain{Complete: 1, Nodes: []openrtb2.SupplyChainNode{}, Ver: "2"}},
+						Regs:   &openrtb2.Regs{GDPR: openrtb2.Int8Ptr(1), USPrivacy: "3", GPP: "DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN", GPPSID: []int8{7}},
+						User:   &openrtb2.User{Consent: "1", EIDs: []openrtb2.EID{{Source: "42"}}},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version: "2.6jkfk",
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID:     "anyID",
+						Imp:    []openrtb2.Imp{{Ext: json.RawMessage(`{"bidder":{"placementId":"123"},"prebid":{"is_rewarded_inventory":1}}`)}},
+						Source: &openrtb2.Source{Ext: json.RawMessage(`{"schain":{"complete":1,"nodes":[],"ver":"2"}}`)},
+						Regs:   &openrtb2.Regs{Ext: json.RawMessage(`{"gdpr":1,"gpp":"DBACNYA~CPXxRfAPXxRfAAfKABENB-CgAAAAAAAAAAYgAAAAAAAA~1YNN","gpp_sid":[7],"us_privacy":"3"}`)},
+						User:   &openrtb2.User{Ext: json.RawMessage(`{"consent":"1","eids":[{"source":"42"}]}`)},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+
+		gdprPermissionsBuilder := fakePermissionsBuilder{
+			permissions: &permissionsMock{
+				allowAllBidders: true,
+			},
+		}.Builder
+		tcf2ConfigBuilder := fakeTCF2ConfigBuilder{
+			cfg: gdpr.NewTCF2Config(config.TCF2{}, config.AccountGDPR{}),
+		}.Builder
+
+		reqSplitter := &requestSplitter{
+			bidderToSyncerKey: map[string]string{},
+			me:                &metrics.MetricsEngineMock{},
+			privacyConfig:     config.Privacy{},
+			gdprPermsBuilder:  gdprPermissionsBuilder,
+			tcf2ConfigBuilder: tcf2ConfigBuilder,
+			hostSChainNode:    nil,
+			bidderInfo:        tc.bidderInfos,
+		}
+
+		actualBidderRequests, _, err := reqSplitter.cleanOpenRTBRequests(context.Background(), tc.req, nil, gdpr.SignalNo)
+		assert.Empty(t, err, "No errors should be returned")
+		assert.Len(t, actualBidderRequests, len(tc.expectedBidderRequests), "result len doesn't match for testCase %s", tc.description)
+		for _, actualBidderRequest := range actualBidderRequests {
+			bidderName := string(actualBidderRequest.BidderName)
+			assert.Equal(t, tc.expectedBidderRequests[bidderName].BidRequest.Imp, actualBidderRequest.BidRequest.Imp, "incorrect Impressions for testCase %s", tc.description)
+		}
+	}
+}
+
+func TestConvertImpressions(t *testing.T) {
+	testCases := []struct {
+		description            string
+		req                    AuctionRequest
+		expectedBidderRequests map[string]BidderRequest
+		bidderInfos            map[string]config.BidderInfo
+	}{
+		{
+			description: "2.6 version request, expect no downgrading to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1",
+								Video: &openrtb2.Video{
+									PodDur: int64(60),
+									MaxSeq: int64(4),
+									W:      600,
+									H:      500,
+								},
+								Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`),
+							},
+						},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version:                   "2.6",
+						DynamicAdPoddingSupported: proto.Bool(false),
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1_0",
+								Video: &openrtb2.Video{
+									MaxDuration: 15,
+									W:           600,
+									H:           500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+							{
+								ID: "1_1",
+								Video: &openrtb2.Video{
+									MaxDuration: 15,
+									W:           600,
+									H:           500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+							{
+								ID: "1_2",
+								Video: &openrtb2.Video{
+									MaxDuration: 15,
+									W:           600,
+									H:           500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+							{
+								ID: "1_3",
+								Video: &openrtb2.Video{
+									MaxDuration: 15,
+									W:           600,
+									H:           500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+
+		gdprPermissionsBuilder := fakePermissionsBuilder{
+			permissions: &permissionsMock{
+				allowAllBidders: true,
+			},
+		}.Builder
+		tcf2ConfigBuilder := fakeTCF2ConfigBuilder{
+			cfg: gdpr.NewTCF2Config(config.TCF2{}, config.AccountGDPR{}),
+		}.Builder
+
+		reqSplitter := &requestSplitter{
+			bidderToSyncerKey: map[string]string{},
+			me:                &metrics.MetricsEngineMock{},
+			privacyConfig:     config.Privacy{},
+			gdprPermsBuilder:  gdprPermissionsBuilder,
+			tcf2ConfigBuilder: tcf2ConfigBuilder,
+			hostSChainNode:    nil,
+			bidderInfo:        tc.bidderInfos,
+		}
+
+		actualBidderRequests, _, err := reqSplitter.cleanOpenRTBRequests(context.Background(), tc.req, nil, gdpr.SignalNo)
+		assert.Empty(t, err, "No errors should be returned")
+		assert.Len(t, actualBidderRequests, len(tc.expectedBidderRequests), "result len doesn't match for testCase %s", tc.description)
+		for _, actualBidderRequest := range actualBidderRequests {
+			bidderName := string(actualBidderRequest.BidderName)
+			assert.Equal(t, tc.expectedBidderRequests[bidderName].BidRequest.Imp, actualBidderRequest.BidRequest.Imp, "incorrect Impressions for testCase %s", tc.description)
+		}
 	}
 }
