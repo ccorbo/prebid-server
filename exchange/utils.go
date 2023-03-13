@@ -153,7 +153,6 @@ func (rs *requestSplitter) cleanOpenRTBRequests(ctx context.Context,
 
 		if bidInfo, ok := rs.bidderInfo[bidderRequest.BidderName.String()]; ok {
 			var openrtbVersion float64
-			//var err error
 			if bidInfo.OpenRTB != nil {
 				if bidInfo.OpenRTB.Version != "" {
 					openrtbVersion, err = strconv.ParseFloat(bidInfo.OpenRTB.Version, 64)

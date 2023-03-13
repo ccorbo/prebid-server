@@ -18,7 +18,6 @@ import (
 	"github.com/prebid/prebid-server/util/ptrutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/proto"
 )
 
 // permissionsMock mocks the Permissions interface for tests
@@ -517,6 +516,7 @@ func TestCleanOpenRTBRequestsWithFPD(t *testing.T) {
 	fpd[openrtb_ext.BidderName("appnexus")] = &apnFpd
 
 	brightrollFpd := firstpartydata.ResolvedFirstPartyData{
+		Site: &openrtb2.Site{Name: "fpdBrightrollSite"},
 		App:  &openrtb2.App{Name: "fpdBrightrollApp"},
 		User: &openrtb2.User{Keywords: "fpdBrightrollUser"},
 	}
@@ -4032,8 +4032,18 @@ func TestCleanOpenRTBRequestsDowngrading(t *testing.T) {
 		}
 	}
 }
+func boolTrue() *bool {
+	b := true
+	return &b
+}
+
+func boolFalse() *bool {
+	b := false
+	return &b
+}
 
 func TestConvertImpressions(t *testing.T) {
+
 	testCases := []struct {
 		description            string
 		req                    AuctionRequest
@@ -4041,7 +4051,7 @@ func TestConvertImpressions(t *testing.T) {
 		bidderInfos            map[string]config.BidderInfo
 	}{
 		{
-			description: "2.6 version request, expect no downgrading to take place",
+			description: "dynamic ad podding not supported, expect conversion to multiimp to take place",
 			req: AuctionRequest{
 				BidRequestWrapper: &openrtb_ext.RequestWrapper{
 					BidRequest: &openrtb2.BidRequest{
@@ -4066,7 +4076,7 @@ func TestConvertImpressions(t *testing.T) {
 				"appnexus": config.BidderInfo{
 					OpenRTB: &config.OpenRTBInfo{
 						Version:                   "2.6",
-						DynamicAdPoddingSupported: proto.Bool(false),
+						DynamicAdPoddingSupported: boolFalse(),
 					},
 				},
 			},
@@ -4108,6 +4118,105 @@ func TestConvertImpressions(t *testing.T) {
 									MaxDuration: 15,
 									W:           600,
 									H:           500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "dynamic ad podding supported, expect no conversion to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1",
+								Video: &openrtb2.Video{
+									PodDur: int64(60),
+									MaxSeq: int64(4),
+									W:      600,
+									H:      500,
+								},
+								Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`),
+							},
+						},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version:                   "2.6",
+						DynamicAdPoddingSupported: boolTrue(),
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1",
+								Video: &openrtb2.Video{
+									PodDur: int64(60),
+									MaxSeq: int64(4),
+									W:      600,
+									H:      500,
+								},
+								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "dynamic ad podding flag not provided, expect no conversion to take place",
+			req: AuctionRequest{
+				BidRequestWrapper: &openrtb_ext.RequestWrapper{
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1",
+								Video: &openrtb2.Video{
+									PodDur: int64(60),
+									MaxSeq: int64(4),
+									W:      600,
+									H:      500,
+								},
+								Ext: json.RawMessage(`{"prebid":{"bidder":{"appnexus":{"placementId":"123"}}}}`),
+							},
+						},
+					},
+				},
+				UserSyncs: &emptyUsersync{},
+			},
+			bidderInfos: config.BidderInfos{
+				"appnexus": config.BidderInfo{
+					OpenRTB: &config.OpenRTBInfo{
+						Version: "2.6",
+					},
+				},
+			},
+			expectedBidderRequests: map[string]BidderRequest{
+				"appnexus": {
+					BidRequest: &openrtb2.BidRequest{
+						ID: "anyID",
+						Imp: []openrtb2.Imp{
+							{
+								ID: "1",
+								Video: &openrtb2.Video{
+									PodDur: int64(60),
+									MaxSeq: int64(4),
+									W:      600,
+									H:      500,
 								},
 								Ext: json.RawMessage(`{"bidder":{"placementId":"123"}}`),
 							},

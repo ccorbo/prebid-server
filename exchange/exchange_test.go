@@ -2138,7 +2138,7 @@ func TestExchangeJSON(t *testing.T) {
 	if specFiles, err := os.ReadDir("./exchangetest"); err == nil {
 		for _, specFile := range specFiles {
 			fileName := "./exchangetest/" + specFile.Name()
-			fileDisplayName := "exchange/exchangetest/append-bidder-name.json" // + specFile.Name()
+			fileDisplayName := "exchange/exchangetest/" + specFile.Name()
 			t.Run(fileDisplayName, func(t *testing.T) {
 				specData, err := loadFile(fileName)
 				if assert.NoError(t, err, "Failed to load contents of file %s: %v", fileDisplayName, err) {
@@ -2418,9 +2418,7 @@ func newExchangeForTests(t *testing.T, filename string, expectations map[string]
 				expectations:  map[string]*bidderRequest{string(bidderName): spec.ExpectedRequest},
 				mockResponses: map[string]bidderResponse{string(bidderName): spec.MockResponse},
 			}
-			bidderInfos[string(bidderName)] = config.BidderInfo{
-				ModifyingVastXmlAllowed: spec.ModifyingVastXmlAllowed,
-			}
+			bidderInfos[string(bidderName)] = config.BidderInfo{ModifyingVastXmlAllowed: spec.ModifyingVastXmlAllowed}
 		}
 	}
 
