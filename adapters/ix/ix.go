@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -33,6 +34,22 @@ type IxDiag struct {
 	PbsV  string `json:"pbsv,omitempty"`
 	PbjsV string `json:"pbjsv,omitempty"`
 }
+
+type ExtFeatures struct {
+	Features Features `json:"features"`
+}
+
+const FtBidExtEnabled = "FtBidExtEnabled"
+
+type Features struct {
+	FtBidExtEnabled Activated `json:"ft_bid_ext_enabled"`
+}
+
+type Activated struct {
+	Activated bool `json:"activated"`
+}
+
+var FeaturesMap = make(map[string]bool)
 
 func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
 	nImp := len(request.Imp)
@@ -165,6 +182,8 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 		}}
 	}
 
+	setFeatureToggles(&bidResponse)
+
 	// Store media type per impression in a map for later use to set in bid.ext.prebid.type
 	// Won't work for multiple bid case with a multi-format ad unit. We expect to get type from exchange on such case.
 	impMediaTypeReq := map[string]openrtb_ext.BidType{}
@@ -229,6 +248,10 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 						bid.AdM = string(json)
 					}
 				}
+			}
+
+			if getFeatureToggle(FtBidExtEnabled) == true {
+				bid.Ext = json.RawMessage("{\"test\":\"helloworld\"}")
 			}
 
 			bidderResponse.Bids = append(bidderResponse.Bids, &adapters.TypedBid{
@@ -358,4 +381,29 @@ func BuildIxDiag(request *openrtb2.BidRequest) error {
 		request.Ext = extRequestJson
 	}
 	return nil
+}
+
+func setFeatureToggles(br *openrtb2.BidResponse) {
+	ext := br.Ext
+	if ext == nil {
+		return
+	}
+
+	f := ExtFeatures{}
+	json.Unmarshal(ext, &f)
+	v := reflect.Indirect(reflect.ValueOf(f.Features))
+
+	for i := 0; i < v.NumField(); i++ {
+		activated := v.Field(i).Interface()
+		a := reflect.ValueOf(activated)
+		FeaturesMap[v.Type().Field(i).Name] = a.Field(0).Bool()
+	}
+}
+
+func getFeatureToggle(ftName string) bool {
+	if value, ok := FeaturesMap[ftName]; ok {
+		return value
+	}
+
+	return false
 }

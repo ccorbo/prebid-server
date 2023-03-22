@@ -12,5 +12,3 @@ capabilities:
       - banner
       - video
       - native
-userSync:
-  key: "adnxs"
