@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/config"
@@ -49,7 +50,14 @@ type Activated struct {
 	Activated bool `json:"activated"`
 }
 
-var FeaturesMap = make(map[string]bool)
+type FeatureTimestamp struct {
+	Timestamp int64
+	Activated bool
+}
+
+const EXPIRE_FT_TIME = 3600 //1 hour
+
+var FeaturesMap = make(map[string]FeatureTimestamp)
 
 func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
 	nImp := len(request.Imp)
@@ -182,7 +190,7 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 		}}
 	}
 
-	setFeatureToggles(&bidResponse)
+	setFeatureToggles(&bidResponse.Ext)
 
 	// Store media type per impression in a map for later use to set in bid.ext.prebid.type
 	// Won't work for multiple bid case with a multi-format ad unit. We expect to get type from exchange on such case.
@@ -383,27 +391,37 @@ func BuildIxDiag(request *openrtb2.BidRequest) error {
 	return nil
 }
 
-func setFeatureToggles(br *openrtb2.BidResponse) {
-	ext := br.Ext
+func setFeatureToggles(ext *json.RawMessage) {
 	if ext == nil {
 		return
 	}
 
 	f := ExtFeatures{}
-	json.Unmarshal(ext, &f)
+	err := json.Unmarshal(*ext, &f)
+	if err != nil {
+		return
+	}
+
 	v := reflect.Indirect(reflect.ValueOf(f.Features))
 
 	for i := 0; i < v.NumField(); i++ {
 		activated := v.Field(i).Interface()
 		a := reflect.ValueOf(activated)
-		FeaturesMap[v.Type().Field(i).Name] = a.Field(0).Bool()
+		ft := FeatureTimestamp{
+			Activated: a.Field(0).Bool(),
+			Timestamp: time.Now().Unix(),
+		}
+		FeaturesMap[v.Type().Field(i).Name] = ft
 	}
 }
 
 func getFeatureToggle(ftName string) bool {
 	if value, ok := FeaturesMap[ftName]; ok {
-		return value
+		timeNow := time.Now().Unix()
+		if timeNow-value.Timestamp > EXPIRE_FT_TIME {
+			return false
+		}
+		return value.Activated
 	}
-
 	return false
 }

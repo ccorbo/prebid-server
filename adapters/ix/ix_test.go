@@ -3,6 +3,7 @@ package ix
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/prebid/prebid-server/adapters"
 	"github.com/prebid/prebid-server/adapters/adapterstest"
@@ -275,4 +276,41 @@ func TestMakeRequestsErrIxDiag(t *testing.T) {
 	}
 	_, errs := bidder.MakeRequests(req, nil)
 	assert.Len(t, errs, 1)
+}
+
+func TestSetFeatureToggles(t *testing.T) {
+	testCases := []struct {
+		description string
+		ext         json.RawMessage
+		expected    map[string]FeatureTimestamp
+	}{
+		// {
+		// 	description: "nil ext",
+		// 	ext:         nil,
+		// 	expected:    map[string]FeatureTimestamp{},
+		// },
+		// {
+		// 	description: "Empty input",
+		// 	ext:         json.RawMessage(``),
+		// 	expected:    map[string]FeatureTimestamp{},
+		// },
+		{
+			description: "valid input with one feature toggle",
+			ext:         json.RawMessage(`{"features":{"ft_test_1":{"activated":true}}}`),
+			expected: map[string]FeatureTimestamp{
+				"ft_test_1": {
+					Activated: true,
+					Timestamp: time.Now().Unix(),
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			setFeatureToggles(&tc.ext)
+			assert.Equal(t, FeaturesMap, tc.expected)
+			FeaturesMap = map[string]FeatureTimestamp{}
+		})
+	}
 }
