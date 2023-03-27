@@ -284,16 +284,16 @@ func TestSetFeatureToggles(t *testing.T) {
 		ext         json.RawMessage
 		expected    map[string]FeatureTimestamp
 	}{
-		// {
-		// 	description: "nil ext",
-		// 	ext:         nil,
-		// 	expected:    map[string]FeatureTimestamp{},
-		// },
-		// {
-		// 	description: "Empty input",
-		// 	ext:         json.RawMessage(``),
-		// 	expected:    map[string]FeatureTimestamp{},
-		// },
+		{
+			description: "nil ext",
+			ext:         nil,
+			expected:    map[string]FeatureTimestamp{},
+		},
+		{
+			description: "Empty input",
+			ext:         json.RawMessage(``),
+			expected:    map[string]FeatureTimestamp{},
+		},
 		{
 			description: "valid input with one feature toggle",
 			ext:         json.RawMessage(`{"features":{"ft_test_1":{"activated":true}}}`),
@@ -304,6 +304,35 @@ func TestSetFeatureToggles(t *testing.T) {
 				},
 			},
 		},
+		{
+			description: "valid input with two feature toggles",
+			ext:         json.RawMessage(`{"features":{"ft_test_1":{"activated":true},"ft_test_2":{"activated":false}}}`),
+			expected: map[string]FeatureTimestamp{
+				"ft_test_1": {
+					Activated: true,
+					Timestamp: time.Now().Unix(),
+				},
+				"ft_test_2": {
+					Activated: false,
+					Timestamp: time.Now().Unix(),
+				},
+			},
+		},
+		{
+			description: "input with one feature toggle, no activated key",
+			ext:         json.RawMessage(`{"features":{"ft_test_1":{"exists":true}}}`),
+			expected:    map[string]FeatureTimestamp{},
+		},
+		{
+			description: "features not formatted correctly",
+			ext:         json.RawMessage(`{"features":"helloworld"}`),
+			expected:    map[string]FeatureTimestamp{},
+		},
+		{
+			description: "no features",
+			ext:         json.RawMessage(`{"prebid":{"test":"helloworld"}}`),
+			expected:    map[string]FeatureTimestamp{},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -311,6 +340,41 @@ func TestSetFeatureToggles(t *testing.T) {
 			setFeatureToggles(&tc.ext)
 			assert.Equal(t, FeaturesMap, tc.expected)
 			FeaturesMap = map[string]FeatureTimestamp{}
+		})
+	}
+}
+
+func TestGetFeatureToggle(t *testing.T) {
+	FeaturesMap = map[string]FeatureTimestamp{
+		"feature1": {
+			Activated: true,
+			Timestamp: time.Now().Unix(),
+		},
+		"feature2": {
+			Activated: true,
+			Timestamp: time.Now().Unix() - 3700,
+		},
+		"feature3": {
+			Activated: false,
+			Timestamp: time.Now().Unix(),
+		},
+	}
+
+	tests := []struct {
+		description string
+		ftName      string
+		expected    bool
+	}{
+		{"ActivatedFeature", "feature1", true},
+		{"ExpiredFeature", "feature2", false},
+		{"NotExpiredFeature", "feature3", false},
+		{"NonExistentFeature", "nonexistent", false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			result := getFeatureToggle(test.ftName)
+			assert.Equal(t, test.expected, result)
 		})
 	}
 }

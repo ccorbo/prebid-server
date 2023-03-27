@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -36,19 +35,7 @@ type IxDiag struct {
 	PbjsV string `json:"pbjsv,omitempty"`
 }
 
-type ExtFeatures struct {
-	Features Features `json:"features"`
-}
-
-const FtBidExtEnabled = "FtBidExtEnabled"
-
-type Features struct {
-	FtBidExtEnabled Activated `json:"ft_bid_ext_enabled"`
-}
-
-type Activated struct {
-	Activated bool `json:"activated"`
-}
+const FtBidExtEnabled = "ft_bid_ext_enabled"
 
 type FeatureTimestamp struct {
 	Timestamp int64
@@ -392,26 +379,28 @@ func BuildIxDiag(request *openrtb2.BidRequest) error {
 }
 
 func setFeatureToggles(ext *json.RawMessage) {
-	if ext == nil {
+	if *ext == nil {
 		return
 	}
 
-	f := ExtFeatures{}
+	var f interface{}
 	err := json.Unmarshal(*ext, &f)
+
 	if err != nil {
 		return
 	}
 
-	v := reflect.Indirect(reflect.ValueOf(f.Features))
-
-	for i := 0; i < v.NumField(); i++ {
-		activated := v.Field(i).Interface()
-		a := reflect.ValueOf(activated)
-		ft := FeatureTimestamp{
-			Activated: a.Field(0).Bool(),
-			Timestamp: time.Now().Unix(),
+	if features, ok := f.(map[string]interface{})["features"]; ok {
+		if ft, ok := features.(map[string]interface{}); ok {
+			for k, v := range ft {
+				if a, ok := v.(map[string]interface{})["activated"]; ok {
+					FeaturesMap[k] = FeatureTimestamp{
+						Activated: a.(bool),
+						Timestamp: time.Now().Unix(),
+					}
+				}
+			}
 		}
-		FeaturesMap[v.Type().Field(i).Name] = ft
 	}
 }
 
