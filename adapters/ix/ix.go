@@ -28,15 +28,11 @@ type ExtRequest struct {
 	Prebid   *openrtb_ext.ExtRequestPrebid `json:"prebid"`
 	SChain   *openrtb2.SupplyChain         `json:"schain,omitempty"`
 	IxDiag   *IxDiag                       `json:"ixdiag,omitempty"`
-	Features *Features                     `json:"features,omitempty"`
-}
-
-type Features struct {
-	FtBidExtEnabled Activated `json:"ft_bid_ext_enabled,omitempty"`
+	Features map[string]Activated          `json:"features,omitempty"`
 }
 
 type Activated struct {
-	Activated bool `json:"activated,omitempty"`
+	Activated bool `json:"activated"`
 }
 
 type IxDiag struct {
@@ -51,6 +47,9 @@ type FeatureTimestamp struct {
 
 const EXPIRE_FT_TIME = 3600 //1 hour
 
+const FtBidExtEnabled = "ft_bid_ext_enabled"
+
+var FeaturesToRequest = []string{FtBidExtEnabled}
 var FeaturesMap = make(map[string]FeatureTimestamp)
 
 func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters.ExtraRequestInfo) ([]*adapters.RequestData, []error) {
@@ -422,15 +421,23 @@ func requestFeatureToggles(request *openrtb2.BidRequest) {
 	var ext ExtRequest
 	json.Unmarshal(request.Ext, &ext)
 
-	ext.Features = &Features{
-		FtBidExtEnabled: Activated{
-			Activated: true,
-		},
+	for _, ft := range FeaturesToRequest {
+		if ext.Features == nil {
+			ext.Features = make(map[string]Activated)
+		}
+
+		status := getFeatureToggle(ft)
+
+		ext.Features[ft] = Activated{
+			Activated: status,
+		}
+
 	}
 
 	extJson, err := json.Marshal(ext)
 
 	if err != nil {
-		request.Ext = extJson
+		return
 	}
+	request.Ext = extJson
 }

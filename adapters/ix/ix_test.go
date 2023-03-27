@@ -378,3 +378,53 @@ func TestGetFeatureToggle(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestFeatureToggles(t *testing.T) {
+	type testCase struct {
+		name              string
+		inputRequest      *openrtb2.BidRequest
+		featuresToRequest []string
+		expectedExt       json.RawMessage
+		initialFeatureMap *FeatureTimestamp
+	}
+
+	testCases := []testCase{
+		{
+			name:              "empty features",
+			inputRequest:      &openrtb2.BidRequest{ID: "1"},
+			featuresToRequest: []string{},
+			expectedExt:       json.RawMessage(`{"prebid":null}`),
+		},
+		{
+			name:              "no features existing internally, request feature expect false",
+			inputRequest:      &openrtb2.BidRequest{ID: "1"},
+			featuresToRequest: []string{"ft1"},
+			expectedExt:       json.RawMessage(`{"prebid":null,"features":{"ft1":{"activated":false}}}`),
+		},
+		{
+			name:              "feature exists internally and activated",
+			inputRequest:      &openrtb2.BidRequest{ID: "1"},
+			featuresToRequest: []string{"ft1"},
+			expectedExt:       json.RawMessage(`{"prebid":null,"features":{"ft1":{"activated":true}}}`),
+			initialFeatureMap: &FeatureTimestamp{Timestamp: time.Now().Unix(), Activated: true},
+		},
+		{
+			name:              "feature exists internally and not activated",
+			inputRequest:      &openrtb2.BidRequest{ID: "1"},
+			featuresToRequest: []string{"ft1"},
+			expectedExt:       json.RawMessage(`{"prebid":null,"features":{"ft1":{"activated":false}}}`),
+			initialFeatureMap: &FeatureTimestamp{Timestamp: time.Now().Unix(), Activated: false},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.initialFeatureMap != nil {
+				FeaturesMap["ft1"] = *tc.initialFeatureMap
+			}
+			FeaturesToRequest = tc.featuresToRequest
+			requestFeatureToggles(tc.inputRequest)
+			assert.Equal(t, tc.expectedExt, tc.inputRequest.Ext)
+		})
+	}
+}
