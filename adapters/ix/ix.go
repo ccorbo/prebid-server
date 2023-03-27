@@ -25,17 +25,24 @@ type IxAdapter struct {
 }
 
 type ExtRequest struct {
-	Prebid *openrtb_ext.ExtRequestPrebid `json:"prebid"`
-	SChain *openrtb2.SupplyChain         `json:"schain,omitempty"`
-	IxDiag *IxDiag                       `json:"ixdiag,omitempty"`
+	Prebid   *openrtb_ext.ExtRequestPrebid `json:"prebid"`
+	SChain   *openrtb2.SupplyChain         `json:"schain,omitempty"`
+	IxDiag   *IxDiag                       `json:"ixdiag,omitempty"`
+	Features *Features                     `json:"features,omitempty"`
+}
+
+type Features struct {
+	FtBidExtEnabled Activated `json:"ft_bid_ext_enabled,omitempty"`
+}
+
+type Activated struct {
+	Activated bool `json:"activated,omitempty"`
 }
 
 type IxDiag struct {
 	PbsV  string `json:"pbsv,omitempty"`
 	PbjsV string `json:"pbjsv,omitempty"`
 }
-
-const FtBidExtEnabled = "ft_bid_ext_enabled"
 
 type FeatureTimestamp struct {
 	Timestamp int64
@@ -108,6 +115,8 @@ func (a *IxAdapter) MakeRequests(request *openrtb2.BidRequest, reqInfo *adapters
 		}
 	}
 	request.Imp = imps
+
+	requestFeatureToggles(request)
 
 	return append(requests, multiSizeRequests...), errs
 }
@@ -407,4 +416,21 @@ func getFeatureToggle(ftName string) bool {
 		return value.Activated
 	}
 	return false
+}
+
+func requestFeatureToggles(request *openrtb2.BidRequest) {
+	var ext ExtRequest
+	json.Unmarshal(request.Ext, &ext)
+
+	ext.Features = &Features{
+		FtBidExtEnabled: Activated{
+			Activated: true,
+		},
+	}
+
+	extJson, err := json.Marshal(ext)
+
+	if err != nil {
+		request.Ext = extJson
+	}
 }
