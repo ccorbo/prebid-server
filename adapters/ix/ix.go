@@ -185,6 +185,8 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 		}}
 	}
 
+	setFeatureToggles(&bidResponse.Ext)
+
 	// Store media type per impression in a map for later use to set in bid.ext.prebid.type
 	// Won't work for multiple bid case with a multi-format ad unit. We expect to get type from exchange on such case.
 	impMediaTypeReq := map[string]openrtb_ext.BidType{}
@@ -249,6 +251,10 @@ func (a *IxAdapter) MakeBids(internalRequest *openrtb2.BidRequest, externalReque
 						bid.AdM = string(json)
 					}
 				}
+			}
+
+			if getFeatureToggle(FtBidExtEnabled) == true {
+				bid.Ext = json.RawMessage("{\"test\":\"helloworld\"}")
 			}
 
 			bidderResponse.Bids = append(bidderResponse.Bids, &adapters.TypedBid{
